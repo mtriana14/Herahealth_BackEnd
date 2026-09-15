@@ -13,30 +13,33 @@ workout_plan_bp = Blueprint('workout_plan', __name__)
 
 # Get all workout plans for coach
 workout_plan_bp.route('/coach/<int:user_id>/workout-plans', methods=['GET'])(
-    login_required(get_all_coach_workout_plans)
+    coach_required(get_all_coach_workout_plans)
 )
 
 # Get workout plans for specific client
 workout_plan_bp.route('/coach/<int:user_id>/clients/<int:client_id>/workout-plans', methods=['GET'])(
-    login_required(get_client_workout_plans)
+    coach_required(get_client_workout_plans)
 )
 
 # Create new workout plan
 workout_plan_bp.route('/coach/<int:user_id>/workout-plans', methods=['POST'])(
-    login_required(create_workout_plan)
+    coach_required(create_workout_plan)
 )
 
 # Update workout plan
 workout_plan_bp.route('/coach/<int:user_id>/workout-plans/<int:plan_id>', methods=['PUT'])(
-    login_required(update_workout_plan)
+    coach_required(update_workout_plan)
 )
 
 # Delete workout plan
 workout_plan_bp.route('/coach/<int:user_id>/workout-plans/<int:plan_id>', methods=['DELETE'])(
-    login_required(delete_workout_plan)
+    coach_required(delete_workout_plan)
 )
 
 # Client gets their own plans
 workout_plan_bp.route('/my/workout-plans', methods=['GET'])(
     login_required(get_my_workout_plans)
+)
+workout_plan_bp.route('/my/workout-plans', methods=['POST'])(
+    login_required(create_workout_plan)
 )

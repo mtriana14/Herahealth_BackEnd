@@ -1,4 +1,5 @@
 from flask import request, jsonify
+from flask_jwt_extended import get_jwt_identity
 from app.config.db import db
 from app.models.progress_entry import ProgressEntry
 from datetime import date, timedelta
@@ -46,7 +47,25 @@ def _compute_summary(entries):
 
 
 def get_client_progress(user_id):
-    """GET /api/client/<user_id>/progress"""
+    """
+    Get progress entries and summary for a client
+    ---
+    tags:
+      - Progress
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: user_id
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Progress entries with computed summary stats
+    """
+    if int(get_jwt_identity()) != int(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
+
     entries = (
         ProgressEntry.query
         .filter_by(user_id=user_id)
@@ -60,7 +79,48 @@ def get_client_progress(user_id):
 
 
 def save_progress_entry(user_id):
-    """POST /api/client/<user_id>/progress"""
+    """
+    Save a progress entry for a client
+    ---
+    tags:
+      - Progress
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: user_id
+        type: integer
+        required: true
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - entry_date
+          properties:
+            entry_date:
+              type: string
+              example: "2026-04-30"
+            weight:
+              type: number
+            workouts_completed:
+              type: integer
+            calories_burned:
+              type: integer
+            goal_completed:
+              type: boolean
+            notes:
+              type: string
+    responses:
+      201:
+        description: Progress saved with updated summary
+      400:
+        description: Missing entry_date
+    """
+    if int(get_jwt_identity()) != int(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
+
     data = request.get_json() or {}
 
     if not data.get('entry_date'):

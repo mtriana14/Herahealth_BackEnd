@@ -23,6 +23,12 @@ def test_create_user_with_missing_fields(client):
     print(response.json)
     assert response.status_code == 400
 
+def test_public_registration_cannot_choose_admin_role(client):
+    data = create_user(1, role='admin')
+    response = client.post('/api/auth/register', json=data)
+    assert response.status_code == 201
+    assert response.json['user']['role'] == 'client'
+
 def test_create_user_with_duplicate_data(client):
     data = {
         "first_name":"John",
@@ -90,19 +96,37 @@ def test_update_user(client):
     )
     assert resp.status_code == 200
 
+def test_update_user_rejects_privileged_fields(client):
+    token = register_and_login(client, 1)
+    resp = client.patch('/api/auth/update',
+        json={'role': 'admin', 'is_active': False},
+        headers={'Authorization': f'Bearer {token}'}
+    )
+    assert resp.status_code == 400
+
+def test_getusers_requires_auth_and_omits_password(client):
+    token = register_and_login(client, 1)
+    assert client.get('/api/getusers?user_id=1').status_code == 401
+    resp = client.get('/api/getusers?user_id=1',
+        headers={'Authorization': f'Bearer {token}'}
+    )
+    assert resp.status_code == 200
+    assert 'password' not in resp.json[0]
+
+def test_legacy_user_mutation_routes_are_disabled(client):
+    token = register_and_login(client, 1)
+    headers = {'Authorization': f'Bearer {token}'}
+    assert client.patch('/api/customers/1', json={'role': 'admin'}, headers=headers).status_code == 404
+    assert client.delete('/api/customers/1', headers=headers).status_code == 404
+
 def test_user_forgot_password(client):
     seed_users()
     email_to_test = "emily.client@fitnessapp.com"
     resp = client.patch('/api/password_reset/forgot', json = {"email":email_to_test, "password":"new password"})
-    assert resp.status_code == 200
+    assert resp.status_code == 501
     resp = client.post('/api/auth/login', json = {
         "email":email_to_test,
         "password":"password123"
-    })
-    assert resp.status_code == 401
-    resp = client.post('/api/auth/login', json = {
-        "email":email_to_test,
-        "password":"new password"
     })
     assert resp.status_code == 200
 
@@ -113,7 +137,7 @@ def test_user_forgot_password_bad_email(client):
         "email":bad_email,
         "password":"new password"
     })
-    assert resp.status_code == 404
+    assert resp.status_code == 501
 
 def test_user_changes_password(client):
     token = register_and_login(client, 1)
@@ -144,5 +168,4 @@ def test_user_changes_password_invalid_oldpass(client):
 def test_user_changes_password_no_pass(client):
     seed_users()
     resp = client.patch('/api/password_reset/forgot', json = {"email":"john@example.com"})
-    assert resp.status_code == 400
-    
+    assert resp.status_code == 501

@@ -3,14 +3,41 @@ from app.config.db import db
 from app.models.WorkoutPlan import WorkoutPlan
 from app.models.coach import Coach
 from app.models.user import User
+from app.models.hire import Hire
+from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
 
 
 def get_client_workout_plans(user_id, client_id):
-    """Get all workout plans for a specific client created by this coach."""
+    """
+    Get workout plans for a specific client (coach)
+    ---
+    tags:
+      - Workout Plans
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: user_id
+        type: integer
+        required: true
+      - in: path
+        name: client_id
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Client's workout plans
+      404:
+        description: Coach not found
+    """
+    if int(get_jwt_identity()) != int(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
     coach = Coach.query.filter_by(user_id=user_id).first()
     if not coach:
         return jsonify({'error': 'Coach not found'}), 404
+    if not Hire.query.filter_by(user_id=client_id, coach_id=coach.coach_id, status='active').first():
+        return jsonify({'error': 'Client is not assigned to this coach'}), 403
     
     plans = WorkoutPlan.query.filter_by(coach_id=coach.coach_id, user_id=client_id).all()
     result = [
@@ -30,7 +57,26 @@ def get_client_workout_plans(user_id, client_id):
 
 
 def get_all_coach_workout_plans(user_id):
-    """Get all workout plans created by this coach."""
+    """
+    Get all workout plans created by this coach
+    ---
+    tags:
+      - Workout Plans
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: user_id
+        type: integer
+        required: true
+    responses:
+      200:
+        description: List of workout plans
+      404:
+        description: Coach not found
+    """
+    if int(get_jwt_identity()) != int(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
     coach = Coach.query.filter_by(user_id=user_id).first()
     if not coach:
         return jsonify({'error': 'Coach not found'}), 404
@@ -53,11 +99,45 @@ def get_all_coach_workout_plans(user_id):
     return jsonify({'workout_plans': result}), 200
 
 
-def create_workout_plan(user_id):
-    """Create a workout plan — works for both coaches and clients."""
-    from flask_jwt_extended import get_jwt_identity
+def create_workout_plan(user_id=None):
+    """
+    Create a workout plan (coach or client)
+    ---
+    tags:
+      - Workout Plans
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: user_id
+        type: integer
+        required: true
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+            description:
+              type: string
+            client_id:
+              type: integer
+              description: Required when called by a coach
+    responses:
+      201:
+        description: Workout plan created
+      400:
+        description: Missing name or client_id
+    """
     data = request.get_json() or {}
     jwt_user_id = int(get_jwt_identity())
+
+    if user_id is not None and jwt_user_id != int(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
 
     name = data.get('name')
     if not name:
@@ -65,17 +145,22 @@ def create_workout_plan(user_id):
 
     coach = Coach.query.filter_by(user_id=jwt_user_id).first()
 
-    if coach:
+    if user_id is None:
+        if coach:
+            return jsonify({'error': 'Coaches must assign plans through the coach endpoint'}), 403
+        plan_user_id = jwt_user_id
+        plan_coach_id = None
+    elif coach:
         # Coach creating plan for a client
         client_id = data.get('client_id')
         if not client_id:
             return jsonify({'error': 'client_id is required for coaches'}), 400
+        if not Hire.query.filter_by(user_id=client_id, coach_id=coach.coach_id, status='active').first():
+            return jsonify({'error': 'Client is not assigned to this coach'}), 403
         plan_user_id = client_id
         plan_coach_id = coach.coach_id
     else:
-        # Client creating their own plan
-        plan_user_id = jwt_user_id
-        plan_coach_id = None
+        return jsonify({'error': 'Coach access required'}), 403
 
     plan = WorkoutPlan(
         user_id=plan_user_id,
@@ -94,8 +179,42 @@ def create_workout_plan(user_id):
 
 
 def update_workout_plan(user_id, plan_id):
-    """Update an existing workout plan."""
-    data = request.get_json()
+    """
+    Update a workout plan
+    ---
+    tags:
+      - Workout Plans
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: user_id
+        type: integer
+        required: true
+      - in: path
+        name: plan_id
+        type: integer
+        required: true
+      - in: body
+        name: body
+        schema:
+          type: object
+          properties:
+            name:
+              type: string
+            description:
+              type: string
+            status:
+              type: string
+    responses:
+      200:
+        description: Plan updated
+      404:
+        description: Coach or plan not found
+    """
+    if int(get_jwt_identity()) != int(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
+    data = request.get_json(silent=True) or {}
     
     coach = Coach.query.filter_by(user_id=user_id).first()
     if not coach:
@@ -118,7 +237,30 @@ def update_workout_plan(user_id, plan_id):
 
 
 def delete_workout_plan(user_id, plan_id):
-    """Delete a workout plan."""
+    """
+    Delete a workout plan
+    ---
+    tags:
+      - Workout Plans
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: user_id
+        type: integer
+        required: true
+      - in: path
+        name: plan_id
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Plan deleted
+      404:
+        description: Coach or plan not found
+    """
+    if int(get_jwt_identity()) != int(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
     coach = Coach.query.filter_by(user_id=user_id).first()
     if not coach:
         return jsonify({'error': 'Coach not found'}), 404
@@ -133,7 +275,17 @@ def delete_workout_plan(user_id, plan_id):
     return jsonify({'message': 'Workout plan deleted successfully'}), 200
 
 def get_my_workout_plans():
-    """Client gets all their own workout plans."""
+    """
+    Get your own workout plans (client)
+    ---
+    tags:
+      - Workout Plans
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: List of the caller's workout plans
+    """
     from flask_jwt_extended import get_jwt_identity
     user_id = int(get_jwt_identity())
     plans = WorkoutPlan.query.filter_by(user_id=user_id).all()

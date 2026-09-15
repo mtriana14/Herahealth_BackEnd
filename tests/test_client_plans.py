@@ -6,6 +6,9 @@ controllers that allow clients to create their own plans.
 from tests.pre_builts import register_and_login
 from app.seeders.user_seeder import seed_users
 from app.seeders.coach_seeder import seed_coaches
+from app.config.db import db
+from app.models.coach import Coach
+from app.models.hire import Hire
 
 
 # CLIENT MEAL PLANS
@@ -203,7 +206,7 @@ def test_coach_create_mealplan_missing_client_id(client):
 def test_client_create_workout_plan_success(client):
     """Client should be able to create their own workout plan."""
     token = register_and_login(client, 1, role='client')
-    resp = client.post('/api/coach/0/workout-plans',
+    resp = client.post('/api/my/workout-plans',
         json={
             'name': 'My Push Day',
             'description': 'Chest, shoulders, triceps'
@@ -216,7 +219,7 @@ def test_client_create_workout_plan_success(client):
 
 def test_client_create_workout_plan_missing_name(client):
     token = register_and_login(client, 1, role='client')
-    resp = client.post('/api/coach/0/workout-plans',
+    resp = client.post('/api/my/workout-plans',
         json={'description': 'No name'},
         headers={'Authorization': f'Bearer {token}'}
     )
@@ -224,7 +227,7 @@ def test_client_create_workout_plan_missing_name(client):
 
 
 def test_client_create_workout_plan_no_token(client):
-    resp = client.post('/api/coach/0/workout-plans',
+    resp = client.post('/api/my/workout-plans',
         json={'name': 'My Plan'}
     )
     assert resp.status_code == 401
@@ -234,11 +237,11 @@ def test_client_get_own_workout_plans(client):
     """Client should be able to retrieve their own workout plans."""
     token = register_and_login(client, 1, role='client')
     # Create two plans
-    client.post('/api/coach/0/workout-plans',
+    client.post('/api/my/workout-plans',
         json={'name': 'Push Day'},
         headers={'Authorization': f'Bearer {token}'}
     )
-    client.post('/api/coach/0/workout-plans',
+    client.post('/api/my/workout-plans',
         json={'name': 'Pull Day'},
         headers={'Authorization': f'Bearer {token}'}
     )
@@ -256,7 +259,7 @@ def test_client_cannot_see_other_client_workout_plans(client):
     token_a = register_and_login(client, 1, role='client')
     token_b = register_and_login(client, 2, role='client')
 
-    client.post('/api/coach/0/workout-plans',
+    client.post('/api/my/workout-plans',
         json={'name': "Client A's Plan"},
         headers={'Authorization': f'Bearer {token_a}'}
     )
@@ -284,6 +287,9 @@ def test_coach_create_workout_plan_for_client(client):
         'password': 'password'
     })
     client_user_id = client_login.json['user']['id']
+    coach = Coach.query.filter_by(user_id=2).first()
+    db.session.add(Hire(user_id=client_user_id, coach_id=coach.coach_id, status='active'))
+    db.session.commit()
 
     resp = client.post('/api/coach/2/workout-plans',
         json={

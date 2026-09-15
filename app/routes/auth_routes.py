@@ -1,5 +1,5 @@
 from flask import Blueprint
-from app.controllers.auth_controller import (register, login, logout, update_user, delete_user, update_coach)
+from app.controllers.auth_controller import register, login, logout, update_user, delete_user, update_coach
 from app.controllers.pfp_controller import upload_pfp
 from app.middleware.auth_middleware import login_required
 

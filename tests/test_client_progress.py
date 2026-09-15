@@ -193,6 +193,14 @@ def test_get_progress_no_token(client):
     assert resp.status_code == 401
 
 
+def test_get_progress_rejects_different_user(client):
+    token = get_client_token(client)
+    resp = client.get('/api/client/5/progress',
+        headers={'Authorization': f'Bearer {token}'}
+    )
+    assert resp.status_code == 403
+
+
 # POST /client/<user_id>/progress
 
 def test_save_progress_success(client):
@@ -272,6 +280,15 @@ def test_save_progress_no_token(client):
         json={'entry_date': str(date.today())}
     )
     assert resp.status_code == 401
+
+
+def test_save_progress_rejects_different_user(client):
+    token = get_client_token(client)
+    resp = client.post('/api/client/5/progress',
+        json={'entry_date': str(date.today())},
+        headers={'Authorization': f'Bearer {token}'}
+    )
+    assert resp.status_code == 403
 
 
 def test_save_progress_updates_summary(client):

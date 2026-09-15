@@ -124,16 +124,21 @@ class TestSendRequest:
 
 class TestGetPendingRequests:
 
+    @patch('app.controllers.client_request_controller.User')
     @patch('app.controllers.client_request_controller.ClientRequest')
     @patch('app.controllers.client_request_controller.Coach')
-    def test_get_pending_requests_success(self, mock_coach_cls, mock_cr_cls, client):
+    def test_get_pending_requests_success(self, mock_coach_cls, mock_cr_cls, mock_user_cls, client):
         """Coach can retrieve their pending requests."""
         mock_coach_cls.query.filter_by.return_value.first.return_value = MagicMock()
+        mock_user_cls.query.filter_by.return_value.first.return_value = None
 
         mock_req = MagicMock()
         mock_req.request_id = 1
         mock_req.client_id = 5
+        mock_req.coach_id = 1
         mock_req.message = 'Please coach me'
+        mock_req.status = 'pending'
+        mock_req.responded_at = None
         mock_req.created_at = '2026-01-01'
         mock_cr_cls.query.filter_by.return_value.all.return_value = [mock_req]
 
@@ -144,12 +149,12 @@ class TestGetPendingRequests:
         assert len(data['requests']) == 1
 
     @patch('app.controllers.client_request_controller.Coach')
-    def test_get_pending_requests_coach_not_found(self, mock_coach_cls, client):
-        """Returns 404 when coach does not exist."""
+    def test_get_pending_requests_rejects_different_coach(self, mock_coach_cls, client):
+        """A coach cannot read another coach's request queue."""
         mock_coach_cls.query.filter_by.return_value.first.return_value = None
 
         response = client.get('/api/coach/999/requests', headers=auth_headers(client, role='coach'))
-        assert response.status_code == 404
+        assert response.status_code == 403
 
     @patch('app.controllers.client_request_controller.ClientRequest')
     @patch('app.controllers.client_request_controller.Coach')
@@ -170,13 +175,17 @@ class TestRespondToRequest:
     @patch('app.controllers.client_request_controller.Notification')
     @patch('app.controllers.client_request_controller.db')
     @patch('app.controllers.client_request_controller.Hire')
+    @patch('app.controllers.client_request_controller.Coach')
     @patch('app.controllers.client_request_controller.ClientRequest')
-    def test_accept_request_success(self, mock_cr_cls, mock_hire_cls, mock_db, mock_notif_cls, client):
+    def test_accept_request_success(self, mock_cr_cls, mock_coach_cls, mock_hire_cls, mock_db, mock_notif_cls, client):
         """Coach can accept a pending request and a Hire record is created."""
         mock_req = MagicMock()
         mock_req.client_id = 5
         mock_req.coach_id = 1
         mock_cr_cls.query.filter_by.return_value.first.return_value = mock_req
+        mock_coach = MagicMock()
+        mock_coach.coach_id = 1
+        mock_coach_cls.query.filter_by.return_value.first.return_value = mock_coach
 
         response = client.put(
             '/api/coach/requests/1/respond',
@@ -188,12 +197,17 @@ class TestRespondToRequest:
 
     @patch('app.controllers.client_request_controller.Notification')
     @patch('app.controllers.client_request_controller.db')
+    @patch('app.controllers.client_request_controller.Coach')
     @patch('app.controllers.client_request_controller.ClientRequest')
-    def test_decline_request_success(self, mock_cr_cls, mock_db, mock_notif_cls, client):
+    def test_decline_request_success(self, mock_cr_cls, mock_coach_cls, mock_db, mock_notif_cls, client):
         """Coach can decline a pending request, no Hire created."""
         mock_req = MagicMock()
         mock_req.client_id = 5
+        mock_req.coach_id = 1
         mock_cr_cls.query.filter_by.return_value.first.return_value = mock_req
+        mock_coach = MagicMock()
+        mock_coach.coach_id = 1
+        mock_coach_cls.query.filter_by.return_value.first.return_value = mock_coach
 
         response = client.put(
             '/api/coach/requests/1/respond',
