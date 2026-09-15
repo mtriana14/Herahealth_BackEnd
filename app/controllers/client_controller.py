@@ -8,6 +8,14 @@ from app.models.WorkoutPlan import WorkoutPlan
 from app.models.meal_plan import MealPlan
 from app.models.coach_availability import CoachAvailability
 from app.models.saved_billing import SavedBilling
+from flask_jwt_extended import get_jwt_identity
+
+
+def _current_user_owns(user_id):
+    try:
+        return int(get_jwt_identity()) == int(user_id)
+    except (TypeError, ValueError):
+        return False
 
 
 # ==================== COACHES ====================
@@ -168,6 +176,8 @@ def send_coach_request(user_id):
       409:
         description: Pending request already exists
     """
+    if not _current_user_owns(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
     """
     POST /api/client/<user_id>/requests
     Send a coaching request to a coach.
@@ -237,6 +247,9 @@ def get_my_requests(user_id):
     GET /api/client/<user_id>/requests
     Returns all coaching requests sent by this client.
     """
+    if not _current_user_owns(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
+
     reqs = ClientRequest.query.filter_by(client_id=user_id).all()
     result = []
 
@@ -276,6 +289,9 @@ def get_my_coach(user_id):
     GET /api/client/<user_id>/my-coach
     Returns the client's currently active coach or null if none.
     """
+    if not _current_user_owns(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
+
     hire = Hire.query.filter_by(user_id=user_id, status='active').first()
 
     if not hire:
@@ -335,6 +351,7 @@ def get_my_coaches():
             'user_id':        coach.user_id,
             'name':           f'{user.first_name} {user.last_name}' if user else 'Unknown',
             'specialization': coach.specialization,
+            'monthly_cost':   float(coach.cost),
             'hourly_rate':    float(coach.hourly_rate) if coach.hourly_rate else None,
         })
 
@@ -358,6 +375,9 @@ def get_my_workout_plans(user_id):
       200:
         description: List of workout plans
     """
+    if not _current_user_owns(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
+
     plans  = WorkoutPlan.query.filter_by(user_id=user_id).all()
     result = []
 
@@ -399,6 +419,9 @@ def get_my_meal_plans(user_id):
     GET /api/client/<user_id>/meal-plans
     Returns all meal plans assigned to this client.
     """
+    if not _current_user_owns(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
+
     plans  = MealPlan.query.filter_by(user_id=user_id).all()
     result = []
 

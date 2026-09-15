@@ -6,6 +6,7 @@ from .config.db import init_db
 import os
 from flask_socketio import SocketIO
 from flasgger import Swagger
+from datetime import timedelta
 
 load_dotenv()
 socketio = SocketIO()
@@ -19,7 +20,8 @@ def create_app():
 
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
-    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = False
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
+    app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
     app.config['DB_HOST'] = os.getenv('DB_HOST')
     app.config['DB_USER'] = os.getenv('DB_USER')
     app.config['DB_PASSWORD'] = os.getenv('DB_PASSWORD')
@@ -88,12 +90,6 @@ def create_app():
     app.register_blueprint(coach_registration_bp, url_prefix='/api')
     from app.controllers.getusers import users_bp
     app.register_blueprint(users_bp, url_prefix='/api')
-    from app.controllers.update_user import update_user_bp
-    app.register_blueprint(update_user_bp, url_prefix='/api')
-    from app.controllers.create_user import create_user_bp
-    app.register_blueprint(create_user_bp, url_prefix='/api')
-    from app.controllers.delete_user import delete_user_bp
-    app.register_blueprint(delete_user_bp, url_prefix='/api')
     from app.routes.subscription_routes import subscription_bp
     app.register_blueprint(subscription_bp, url_prefix='/api')
     from app.routes.dismiss_coach_routes import dismiss_coach_bp
@@ -155,7 +151,7 @@ def create_app():
         try:
             db.session.execute(db.text('SELECT 1'))
             return {'status': 'ok', 'database': 'connected'}, 200
-        except Exception as e:
-            return {'status': 'error', 'database': 'unreachable', 'details': str(e)}, 503
+        except Exception:
+            return {'status': 'error', 'database': 'unreachable'}, 503
 
     return app

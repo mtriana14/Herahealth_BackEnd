@@ -1,10 +1,11 @@
-from flask import jsonify, request, current_app
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask import jsonify, request, current_app, session
+from flask_jwt_extended import get_jwt_identity, jwt_required, decode_token
 from flask_socketio import join_room, emit
 from app.config.db import db
 from app.models.message import Message
 from app.models.messagelist import MessageList
 from app.models.coach import Coach
+from app.models.user import User
 from app import socketio
 from datetime import datetime 
 import json
@@ -126,7 +127,16 @@ def handle_join(data):
     try:
         if isinstance(data, str):
             data = json.loads(data)
-        room = str(data['conversation_id'])
+        conversation_id = int(data['conversation_id'])
+        user_id = session.get('socket_user_id')
+        conversation = MessageList.query.filter(
+            (MessageList.MessageList_id == conversation_id) &
+            ((MessageList.user_id == user_id) | (MessageList.coach_id == user_id))
+        ).first()
+        if not conversation:
+            emit('error', {'message': 'Conversation not found or not authorized'})
+            return
+        room = str(conversation_id)
         join_room(room)
         emit('status', {'message':f'joined conversation {room}'}, to=room)
     except Exception as e:
@@ -139,7 +149,7 @@ def handle_message(data):
             data = json.loads(data)
 
         conversation_id = int(data['conversation_id'])
-        sender_id       = int(data['sender_id'])
+        sender_id       = int(session['socket_user_id'])
         content         = data['content']
 
         if not content or not content.strip():
@@ -178,7 +188,15 @@ def handle_mark_read(data):
             data = json.loads(data)
 
         conversation_id = int(data['conversation_id'])
-        user_id         = int(data['user_id'])
+        user_id         = int(session['socket_user_id'])
+
+        conversation = MessageList.query.filter(
+            (MessageList.MessageList_id == conversation_id) &
+            ((MessageList.user_id == user_id) | (MessageList.coach_id == user_id))
+        ).first()
+        if not conversation:
+            emit('error', {'message': 'Conversation not found or not authorized'})
+            return
 
         with current_app.app_context():
             unread_messages = Message.query.filter(
@@ -211,8 +229,20 @@ def handle_mark_read(data):
         emit('error', {'message': str(e)})
 
 @socketio.on('connect')
-def handle_connect():
-    print('Client connected')
+def handle_connect(auth):
+    token = auth.get('token') if isinstance(auth, dict) else None
+    if not token:
+        return False
+    if token.startswith('Bearer '):
+        token = token[7:]
+    try:
+        user_id = int(decode_token(token)['sub'])
+        user = db.session.get(User, user_id)
+        if not user or not user.is_active:
+            return False
+        session['socket_user_id'] = user_id
+    except Exception:
+        return False
 
 @socketio.on('disconnect')
 def handle_disconnect():

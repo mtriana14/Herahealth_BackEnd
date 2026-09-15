@@ -77,6 +77,9 @@ def google_sign_in():
     user = User.query.filter_by(email=email).first()
     created = False
 
+    if user and not user.is_active:
+        return jsonify({'error': 'This account is inactive'}), 403
+
     if not user:
         # Create new account. we store a random 
         # unusable one to satisfy the NOT NULL constraint if present.

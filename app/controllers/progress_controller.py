@@ -1,4 +1,5 @@
 from flask import request, jsonify
+from flask_jwt_extended import get_jwt_identity
 from app.config.db import db
 from app.models.progress_entry import ProgressEntry
 from datetime import date, timedelta
@@ -62,6 +63,9 @@ def get_client_progress(user_id):
       200:
         description: Progress entries with computed summary stats
     """
+    if int(get_jwt_identity()) != int(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
+
     entries = (
         ProgressEntry.query
         .filter_by(user_id=user_id)
@@ -114,6 +118,9 @@ def save_progress_entry(user_id):
       400:
         description: Missing entry_date
     """
+    if int(get_jwt_identity()) != int(user_id):
+        return jsonify({'error': 'Forbidden'}), 403
+
     data = request.get_json() or {}
 
     if not data.get('entry_date'):

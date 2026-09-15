@@ -27,10 +27,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -119,7 +119,7 @@ jobs:
           UPLOAD_FOLDER: static/uploads/profile_photos
         run: |
           python -c "
-          from app.controllers.auth_controller import register, login, logout, reset_password
+          from app.controllers.auth_controller import register, login, logout
           from app.controllers.activity_log_controller import log_strength, log_cardio, log_steps_calories
           from app.controllers.billing_controller import get_saved_cards, pay_with_saved_card
           from app.controllers.client_request_controller import send_request, respond_to_request
@@ -178,7 +178,7 @@ jobs:
     steps:
       - name: Trigger Railway Redeploy
         run: |
-          curl -X POST \
+          curl --fail-with-body -X POST \
             -H "Project-Access-Token: ${{ secrets.RAILWAY_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{"query": "mutation { serviceInstanceRedeploy(environmentId: \"c63dde8f-ad41-4ce5-86c4-fd90968cf6b5\", serviceId: \"9843d01a-f0f6-4152-8f30-0713c77f86b9\") }"}' \

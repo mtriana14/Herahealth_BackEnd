@@ -8,6 +8,7 @@ from app.models.saved_billing import SavedBilling
 from app.models.notification import Notification
 from flask_jwt_extended import get_jwt_identity
 from datetime import date, datetime
+from calendar import monthrange
 import uuid
 
 def subscribe_to_coach(coach_id):
@@ -81,7 +82,7 @@ def subscribe_to_coach(coach_id):
     if not coach:
         return jsonify({'error': 'Coach not found'}), 404
 
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
     # Check if using saved card or new card
     card_id = data.get('card_id')
@@ -123,7 +124,8 @@ def subscribe_to_coach(coach_id):
     today = date.today()
     next_month = today.month % 12 + 1
     next_year = today.year + (1 if today.month == 12 else 0)
-    next_billing_date = date(next_year, next_month, today.day)
+    next_day = min(today.day, monthrange(next_year, next_month)[1])
+    next_billing_date = date(next_year, next_month, next_day)
 
     subscription = Subscription(
         user_id=user_id,

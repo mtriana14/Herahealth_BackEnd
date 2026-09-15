@@ -33,10 +33,6 @@ def register():
               type: string
             password:
               type: string
-            role:
-              type: string
-              enum: [client, coach]
-              default: client
     responses:
       201:
         description: Account created successfully
@@ -45,31 +41,37 @@ def register():
       409:
         description: Email or username already exists
     """
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
 
     # Validate required fields
-    if not data.get('first_name') or not data.get('last_name') or not data.get('email') or not data.get('password'):
+    if not data.get('first_name') or not data.get('last_name') or not email or not password:
         return jsonify({'error': 'First name, last name, email and password are required'}), 400
+    if len(password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
 
     # Check if email already exists
-    existing = User.query.filter_by(email=data.get('email')).first()
+    existing = User.query.filter_by(email=email).first()
     if existing:
         return jsonify({'error': 'An account with this email already exists'}), 409
     
-    existing = User.query.filter_by(username=data.get('username')).first()
+    username = (data.get('username') or '').strip() or None
+    existing = User.query.filter_by(username=username).first() if username else None
     if existing:
         return jsonify({'error': 'An account with this username already exists'}), 409
 
     # Hash password
-    hashed = bcrypt.hashpw(data.get('password').encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
     user = User(
         first_name=data.get('first_name'),
         last_name=data.get('last_name'),
-        username=data.get('username'),
-        email=data.get('email'),
+        username=username,
+        email=email,
         password=hashed,
-        role=data.get('role', 'client')
+        role='client'
     )
 
     db.session.add(user)
@@ -122,13 +124,14 @@ def login():
       401:
         description: Invalid email or password
     """
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
-    if not data.get('email') or not data.get('password'):
+    email = (data.get('email') or '').strip().lower()
+    if not email or not data.get('password'):
         return jsonify({'error': 'Email and password are required'}), 400
 
     # Find user
-    user = User.query.filter_by(email=data.get('email'), is_active=True).first()
+    user = User.query.filter_by(email=email, is_active=True).first()
     if not user:
         return jsonify({'error': 'Invalid email or password'}), 401
 
@@ -136,10 +139,8 @@ def login():
     try:
         if not bcrypt.checkpw(data.get('password').encode('utf-8'), user.password.encode('utf-8')):
             return jsonify({'error': 'Invalid email or password'}), 401
-    except ValueError: # this is for when the salt is invalid. It resalts the password and reattempts the login
-        hashed = bcrypt.hashpw(data.get('password').encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        user.password = hashed
-        login()
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid email or password'}), 401
     user.last_login = db.func.now()
     db.session.commit()
 
@@ -210,7 +211,10 @@ def update_user():
     if not body:
         return jsonify({"Failed": "No body"}), 400
 
-    fields = {col.name for col in User.__table__.columns}
+    fields = {
+        'first_name', 'last_name', 'username', 'email', 'weight', 'height',
+        'phone', 'profile_photo', 'date_of_birth', 'gender'
+    }
     updates = {key: body[key] for key in body if key in fields}
     if len(body) != len(updates):
         return jsonify({"Failed": "Invalid fields present", "Fields": list(fields)}), 400
@@ -218,10 +222,6 @@ def update_user():
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify({"Failed": "User not found"}), 404
-
-    if 'password' in updates:
-        hashed = bcrypt.hashpw(updates['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        updates['password'] = hashed
 
     try:
         for key, value in updates.items():
@@ -231,7 +231,7 @@ def update_user():
     except Exception as e:
         db.session.rollback()
         print(e)
-        return jsonify({"Failed": "Some error occured", "Error": str(e)}), 500
+        return jsonify({"Failed": "Unable to update user"}), 500
 
 @jwt_required()
 def update_coach():
@@ -274,7 +274,10 @@ def update_coach():
     if not coach:
         return jsonify({"Failed": "Coach record not found"}), 404
 
-    fields = {col.name for col in Coach.__table__.columns}
+    fields = {
+        'specialization', 'certifications', 'experience_years', 'gym',
+        'cost', 'hourly_rate', 'bio'
+    }
     updates = {key: body[key] for key in body if key in fields}
     if len(body) != len(updates):
         return jsonify({"Failed": "Invalid fields present", "Fields": list(fields)}), 400
@@ -287,55 +290,7 @@ def update_coach():
     except Exception as e:
         db.session.rollback()
         print(e)
-        return jsonify({"Failed": "Some error occured", "Error": str(e)}), 500
-
-def reset_password():
-    """
-    Reset a user's password by email
-    ---
-    tags:
-      - Authentication
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          required:
-            - email
-            - new_password
-          properties:
-            email:
-              type: string
-            new_password:
-              type: string
-    responses:
-      200:
-        description: Password reset successfully
-      400:
-        description: Missing fields or password too short
-      404:
-        description: No account found with that email
-    """
-    data = request.get_json()
-    email = (data.get('email') or '').strip()
-    new_password = data.get('new_password') or ''
-
-    if not email or not new_password:
-        return jsonify({'error': 'Email and new password are required'}), 400
-
-    if len(new_password) < 8:
-        return jsonify({'error': 'Password must be at least 8 characters'}), 400
-
-    user = User.query.filter_by(email=email, is_active=True).first()
-    if not user:
-        return jsonify({'error': 'No account found with that email'}), 404
-
-    hashed = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    user.password = hashed
-    db.session.commit()
-
-    return jsonify({'message': 'Password reset successfully'}), 200
+        return jsonify({"Failed": "Unable to update coach"}), 500
 
 @jwt_required()
 def delete_user():

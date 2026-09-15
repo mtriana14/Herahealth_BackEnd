@@ -152,6 +152,9 @@ def get_pending_requests(coach_id):
         description: Coach not found
     """
     """Get all pending client requests for a coach."""
+    if int(get_jwt_identity()) != int(coach_id):
+        return jsonify({'error': 'Forbidden'}), 403
+
     coach = Coach.query.filter_by(user_id=coach_id).first()
     if not coach:
         return jsonify({'error': 'Coach not found'}), 404
@@ -187,6 +190,9 @@ def get_all_requests(coach_id):
       404:
         description: Coach not found
     """
+    if int(get_jwt_identity()) != int(coach_id):
+        return jsonify({'error': 'Forbidden'}), 403
+
     coach = Coach.query.filter_by(user_id=coach_id).first()
     if not coach:
         return jsonify({'error': 'Coach not found'}), 404
@@ -235,7 +241,7 @@ def respond_to_request(request_id):
         description: Request not found or already processed
     """
     """Accept or decline a client request."""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     action = data.get('action')  # 'accepted' or 'declined'
 
     if action not in ['accepted', 'declined']:
@@ -245,6 +251,10 @@ def respond_to_request(request_id):
     client_request = ClientRequest.query.filter_by(request_id=request_id, status='pending').first()
     if not client_request:
         return jsonify({'error': 'Request not found or already responded'}), 404
+
+    coach = Coach.query.filter_by(user_id=int(get_jwt_identity())).first()
+    if not coach or coach.coach_id != client_request.coach_id:
+        return jsonify({'error': 'Forbidden'}), 403
 
     # Update request status
     client_request.status = action

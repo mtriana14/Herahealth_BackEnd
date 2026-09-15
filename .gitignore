@@ -1,9 +1,3 @@
-cd fitness-app
-New-Item .gitignore
-```
-
-Pega esto dentro:
-```
 # Environment variables
 .env
 *.env
