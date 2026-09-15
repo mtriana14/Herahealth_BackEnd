@@ -1,239 +1,190 @@
-# Fitness App - Backend API
+# HeraHealth Backend API
 
-A production-grade REST API for a fitness application built with **Python Flask**, **SQLAlchemy**, and **MySQL**. This backend handles coach management, admin operations, and push notifications.
+HeraHealth is a role-based fitness coaching platform for clients, coaches, and administrators. This repository provides the Flask REST API, MySQL data model, JWT authentication, real-time messaging server, migrations, and automated tests used by the [HeraHealth frontend](https://github.com/mtriana14/Workout-WebAPP-FRONTEND).
 
----
+The API supports the full coaching workflow: client and coach accounts, coach discovery and applications, coaching requests, workout and meal plans, schedules, activity and progress tracking, reviews, notifications, billing records, and administrative reporting.
 
-## Tech Stack
+## Tech stack
 
-- **Language:** Python 3.14
-- **Framework:** Flask
-- **ORM:** SQLAlchemy + Flask-Migrate
-- **Database:** MySQL (XAMPP)
-- **Authentication:** JWT (Flask-JWT-Extended)
-- **Password Hashing:** Bcrypt
+- Python 3.11
+- Flask and Flask-SQLAlchemy
+- MySQL through PyMySQL
+- Flask-Migrate/Alembic for schema migrations
+- Flask-JWT-Extended and bcrypt for authentication
+- Flask-SocketIO with Eventlet for real-time chat
+- Flasgger for interactive API documentation
+- pytest for automated tests
+- Gunicorn for production serving
 
----
+## Implemented API areas
 
-## Project Structure
+- Account registration, login/logout, profile updates, password reset, deactivation/reactivation, and optional Google sign-in
+- Coach discovery, applications, profiles, availability, coaching requests, and coach/client relationship management
+- Workout plans, exercises within plans, assignments to a weekly calendar, and completion tracking
+- Meal plans and meal-plan food items
+- Strength, cardio, step, and calorie logs with weekly/monthly/yearly aggregates
+- Fitness goals, daily check-ins, progress entries, and progress photos
+- Coach reviews and in-app notifications
+- Saved payment-method metadata, subscriptions, invoices, coach revenue, payment reporting, and refund-status updates
+- Real-time client/coach messaging with conversation history
+- Admin user, coach, exercise, payment, notification, and platform-report endpoints
 
+Most endpoints are mounted under `/api`. When the server is running, Flasgger exposes interactive API documentation at [http://localhost:5000/apidocs/](http://localhost:5000/apidocs/).
+
+## Project status and known limitations
+
+HeraHealth is a team-built prototype and should not be treated as a production medical or payment service.
+
+- Payment and refund endpoints update HeraHealth's own database records; no external payment processor is integrated.
+- Saved billing records contain card brand, expiration, and last-four metadata only. Do not submit or store real card numbers.
+- Uploaded profile and progress images are stored on the application filesystem under `static/uploads`; production deployments should use durable object storage.
+- The Socket.IO message events identify senders from event data rather than a socket-bound authentication session. Harden this before deploying chat in an untrusted environment.
+- Some older compatibility endpoints overlap with newer role-oriented endpoints.
+
+## Project structure
+
+```text
+.
+├── app/
+│   ├── config/          # Database setup
+│   ├── controllers/     # Request handlers and business logic
+│   ├── middleware/      # JWT and role guards
+│   ├── models/          # SQLAlchemy models
+│   ├── routes/          # Flask blueprints and URL definitions
+│   ├── seeders/         # Optional local sample data
+│   └── __init__.py      # Application factory, CORS, JWT, Swagger, Socket.IO
+├── migrations/          # Alembic migration history
+├── tests/               # pytest suites and fixtures
+├── run.py               # Development entry point
+├── Procfile             # Gunicorn/Eventlet production command
+├── runtime.txt          # Deployment Python version
+└── requirements.txt
 ```
-fitness-app/
-├── backend/
-│   ├── app/
-│   │   ├── config/
-│   │   │   └── db.py               # Database connection
-│   │   ├── controllers/
-│   │   │   ├── coach_availability_controller.py
-│   │   │   ├── client_request_controller.py
-│   │   │   ├── exercise_controller.py
-│   │   │   ├── coach_registration_controller.py
-│   │   │   ├── coach_management_controller.py
-│   │   │   ├── payment_dashboard_controller.py
-│   │   │   └── notification_controller.py
-│   │   ├── models/
-│   │   │   ├── user.py
-│   │   │   ├── coach.py
-│   │   │   ├── coach_availability.py
-│   │   │   ├── client_request.py
-│   │   │   ├── exercise.py
-│   │   │   ├── notification.py
-│   │   │   └── payment.py
-│   │   ├── routes/
-│   │   │   ├── coach_availability_routes.py
-│   │   │   ├── client_request_routes.py
-│   │   │   ├── exercise_routes.py
-│   │   │   ├── coach_registration_routes.py
-│   │   │   ├── coach_management_routes.py
-│   │   │   ├── payment_dashboard_routes.py
-│   │   │   └── notification_routes.py
-│   │   ├── seeders/
-│   │   │   ├── user_seeder.py
-│   │   │   ├── coach_seeder.py
-│   │   │   ├── availability_seeder.py
-│   │   │   ├── exercise_seeder.py
-│   │   │   ├── client_request_seeder.py
-│   │   │   └── run_seeders.py
-│   │   └── __init__.py
-│   ├── migrations/
-│   ├── .env
-│   ├── requirements.txt
-│   └── run.py
-└── frontend/                        # Next.js (handled separately)
-```
 
----
-
-## Getting Started
+## Local setup
 
 ### Prerequisites
 
-- Python 3.14+
-- XAMPP with MySQL running
-- pip
+- Python 3.11
+- A MySQL server and a MySQL user allowed to create/use the application database
 
-### Installation
+### 1. Clone and create a virtual environment
 
-1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd fitness-app/backend
+git clone https://github.com/mtriana14/NEW-WORKOUT-APP-BACK-END-CS490-.git
+cd NEW-WORKOUT-APP-BACK-END-CS490-
+python -m venv .venv
 ```
 
-2. Create and activate virtual environment:
+Activate the environment:
+
 ```bash
-python -m venv venv
+# macOS/Linux
+source .venv/bin/activate
 
-# Windows
-venv\Scripts\activate
-
-# Mac/Linux
-source venv/bin/activate
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
 ```
 
-3. Install dependencies:
+Install dependencies:
+
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-4. Create the `.env` file:
+### 2. Create the MySQL database
+
+Connect with the MySQL CLI or another MySQL client and run:
+
+```sql
+CREATE DATABASE herahealth
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
+
+Use a dedicated local database user where possible, and grant it access to `herahealth`.
+
+### 3. Configure the environment
+
+Create `.env` in the repository root:
+
 ```env
-FLASK_ENV=development
-SECRET_KEY=your_secret_key
-JWT_SECRET_KEY=your_jwt_secret_key
+SECRET_KEY=replace-with-a-random-secret
+JWT_SECRET_KEY=replace-with-a-different-random-secret
+
 DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=
-DB_NAME=fitness_app
+DB_PORT=3306
+DB_USER=herahealth_user
+DB_PASSWORD=replace-with-your-database-password
+DB_NAME=herahealth
+
+# Optional: required only for Google sign-in.
+GOOGLE_CLIENT_ID=your-google-oauth-client-id
+
+# Optional: add another allowed frontend origin.
+CORS_ORIGIN=http://localhost:3000
 ```
 
-5. Create the database in phpMyAdmin:
-   - Open `http://localhost/phpmyadmin`
-   - Create a new database named `fitness_app`
-   - Set collation to `utf8mb4_unicode_ci`
+Do not commit `.env` or real credentials.
 
-6. Run migrations:
+### 4. Apply migrations
+
 ```bash
-python -m flask db upgrade
+python -m flask --app run:app db upgrade
 ```
 
-7. Start the server:
+### 5. Start the API
+
 ```bash
 python run.py
 ```
 
-The API will be running at `http://localhost:5000`
+The API starts at [http://localhost:5000](http://localhost:5000). Useful checks:
 
----
+- `GET /` confirms the service is running.
+- `GET /testdb` checks the database connection.
+- `/apidocs/` opens the interactive API reference.
 
-## Database Models
+## Optional sample data
 
-| Model | Description |
-|-------|-------------|
-| `User` | Base model for all users (client, coach, admin) |
-| `Coach` | Coach profile with specialization and status |
-| `CoachAvailability` | Weekly schedule slots for coaches |
-| `ClientRequest` | Coaching requests from clients to coaches |
-| `Exercise` | Master exercise database managed by admin |
-| `Notification` | Push notifications for all users |
-| `Payment` | Payment transactions between clients and coaches |
+Seeders exist for local users, coaches, availability, exercises, and coaching requests, but they are intentionally not run automatically. From a Python shell with the application context:
 
----
+```python
+from run import app
+from app.seeders.run_seeders import run_all_seeders
 
-## API Endpoints
+with app.app_context():
+    run_all_seeders()
+```
 
-### Coach Availability (UC 9.3)
+The sample accounts use a shared development password and must never be loaded into a public or production database.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/coach/availability` | Set or update coach schedule |
-| GET | `/api/coach/availability/:coach_id` | Get coach schedule |
+## Tests
 
-### Client Requests (UC 9.4)
+The shared pytest fixture creates and clears a MySQL database named `test_db`. Use a disposable local MySQL instance and never point test credentials at a database containing data you need to keep.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/coach/:coach_id/requests` | Get pending requests for a coach |
-| PUT | `/api/coach/requests/:request_id/respond` | Accept or decline a request |
+```sql
+CREATE DATABASE test_db
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
 
-### Admin - Exercise Database (UC 10.1)
+Set `DB_HOST`, `DB_PORT`, `DB_USER`, and `DB_PASSWORD` for that MySQL instance, then run:
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/admin/exercises` | Get all exercises |
-| POST | `/api/admin/exercises` | Create new exercise |
-| PUT | `/api/admin/exercises/:id` | Update exercise |
-| DELETE | `/api/admin/exercises/:id` | Soft delete exercise |
+```bash
+pytest
+```
 
-### Admin - Coach Registrations (UC 10.2)
+## Contributors
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/admin/coaches` | Get all coaches |
-| GET | `/api/admin/coaches/pending` | Get pending coaches |
-| PUT | `/api/admin/coaches/:id/process` | Approve or reject registration |
+The previous README's UC ownership table did not accurately reflect the team’s contributions. This summary combines repository evidence with clarification from project participants. Contribution areas overlap, and Git identities, commit counts, and blame totals should not be interpreted as exact or exclusive measures of authorship.
 
-### Admin - Coach Management (UC 10.3)
+| Contributor | Contribution areas visible in repository history |
+| --- | --- |
+| Melani Triana | Major backend contributor across the database schema and models, configuration and seed data, authentication and account flows, coach and client workflows, workout and meal planning, fitness goals and check-ins, administrative features, tests, and deployment integration. |
+| Kevin Guzman | Substantial contributions across API integration and maintenance, OAuth, plans and calendars, activity and progress tracking, billing and subscriptions, reviews, admin reporting and management, notifications, automated tests, CI, and deployment fixes. |
+| Justin Santiago | Contributions to authentication and account behavior, real-time chat, fitness goals, coach/client workflows, workout and meal-plan functionality, and automated tests. |
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| PUT | `/api/admin/coaches/:id/suspend` | Suspend a coach |
-| PUT | `/api/admin/coaches/:id/reactivate` | Reactivate a coach |
-| PUT | `/api/admin/coaches/:id/disable` | Permanently disable a coach |
+## Related repository
 
-### Admin - Payment Dashboard (UC 10.4)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/admin/payments/summary` | Get overall payment summary |
-| GET | `/api/admin/payments` | Get all payments (paginated) |
-| GET | `/api/admin/payments/coach/:id` | Get payment summary by coach |
-
-### Notifications (UC 11.1)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/notifications/user/:id` | Get all user notifications |
-| GET | `/api/notifications/user/:id/unread` | Get unread notifications |
-| PUT | `/api/notifications/:id/read` | Mark one as read |
-| PUT | `/api/notifications/user/:id/read-all` | Mark all as read |
-| POST | `/api/notifications` | Send a notification |
-| DELETE | `/api/notifications/:id` | Delete a notification |
-
----
-
-## Seeder Data
-
-The following test accounts are seeded automatically on first run:
-
-| Name | Email | Password | Role |
-|------|-------|----------|------|
-| Admin User | admin@fitnessapp.com | password123 | admin |
-| John Smith | john.coach@fitnessapp.com | password123 | coach |
-| Sarah Johnson | sarah.coach@fitnessapp.com | password123 | coach |
-| Mike Davis | mike.client@fitnessapp.com | password123 | client |
-| Emily Brown | emily.client@fitnessapp.com | password123 | client |
-
----
-
-## Testing
-
-Import the provided Postman collection `FitnessApp.postman_collection.json` to test all endpoints. The collection includes pre-configured requests for every endpoint with sample request bodies.
-
----
-
-## Team
-
-| Name | Role | Features |
-|------|------|----------|
-| Kevin | Backend | UC 1.x - Account & Profile |
-| Gaby | Backend | UC 2.x - Coach & Payments |
-| Nick | Backend | UC 3.x - Workout Planning |
-| Justin | Backend | UC 9.3, 9.4, 10.1, 10.2, 10.3, 10.4, 11.1 |
-| Michael | Frontend | Next.js |
-
----
-
-## License
-
-This project was built as part of CS490 - Software Engineering at university level.
+- [HeraHealth frontend](https://github.com/mtriana14/Workout-WebAPP-FRONTEND)
